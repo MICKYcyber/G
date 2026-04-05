@@ -2,7 +2,7 @@
 set -e
 
 ### ======================
-### CONFIG (FIXED)
+### CONFIG
 ### ======================
 
 GENTOO_BASE="https://distfiles.gentoo.org/releases/amd64/autobuilds/current-stage3-amd64-openrc/latest-stage3-amd64-openrc.tar.xz"
@@ -37,6 +37,16 @@ KEYMAP="us"
 TARGET="x86_64-efi"
 
 ### ======================
+### SAFETY + DIR SETUP (FIXED)
+### ======================
+
+trap 'echo "[ERROR] Failed at line $LINENO"; exit 1' ERR
+
+mkdir -p /mnt/gentoo
+mkdir -p /mnt/gentoo/efi
+mkdir -p /mnt/gentoo/{proc,sys,dev,boot,etc,home,var,tmp}
+
+### ======================
 ### PARTITIONING
 ### ======================
 
@@ -67,12 +77,15 @@ if [[ "$SWAP" == "On" ]]; then
 fi
 
 ### ======================
-### MOUNT
+### MOUNT (FIXED)
 ### ======================
 
 mount $ROOT_PART /mnt/gentoo
+
 mkdir -p /mnt/gentoo/efi
 mount $EFI_PART /mnt/gentoo/efi
+
+mkdir -p /mnt/gentoo/{proc,sys,dev,boot,etc,home,var,tmp}
 
 ### ======================
 ### STAGE3 DOWNLOAD
