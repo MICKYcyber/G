@@ -14,9 +14,9 @@ EFI_SIZE="1G"
 
 TIMEZONE="Europe/Berlin"
 
-ROOT_PASSWORD="2024"
-USERNAME="David"
-USER_PASSWORD="2024"
+ROOT_PASSWORD="2112"
+USERNAME="Fear"
+USER_PASSWORD="2112"
 
 MAKE_OPTS="-j$(nproc)"
 GRAP_DRIVERS="nouveau"
@@ -25,8 +25,6 @@ USE_FLAGS="X -systemd pulseaudio pipewire alsa readline sound-server ssl v4l pam
 
 ACCEPT_LICENSE="*"
 ACCEPT_KEYWORDS="~amd64"
-
-DISK="/dev/nvme0n1"
 
 PROFILE="default/linux/amd64/23.0"
 
@@ -37,20 +35,39 @@ KEYMAP="us"
 TARGET="x86_64-efi"
 
 ### ======================
-### SAFETY + DIR SETUP (FIXED)
+### SAFETY
 ### ======================
 
 trap 'echo "[ERROR] Failed at line $LINENO"; exit 1' ERR
 
-mkdir -p /mnt/gentoo
-mkdir -p /mnt/gentoo/efi
-mkdir -p /mnt/gentoo/{proc,sys,dev,boot,etc,home,var,tmp}
+### ======================
+### AUTO DISK DETECTION (FIXED)
+### ======================
+
+DISK=$(lsblk -d -o NAME,SIZE -b | tail -n +2 | sort -k2 -nr | head -n1 | awk '{print "/dev/"$1}')
+
+echo "[*] Auto-detected disk: $DISK"
+
+lsblk -o NAME,SIZE,MODEL
+echo ""
+read -p "WARNING: This will WIPE $DISK. Press ENTER to continue or CTRL+C to abort"
+
+### NVMe vs SATA fix
+if [[ "$DISK" == /dev/nvme* ]]; then
+    P="p"
+else
+    P=""
+fi
+
+EFI_PART="${DISK}${P}1"
+SWAP_PART="${DISK}${P}2"
+ROOT_PART="${DISK}${P}3"
 
 ### ======================
 ### PARTITIONING
 ### ======================
 
-echo "[*] Partitioning disk: $DISK"
+echo "[*] Partitioning disk..."
 
 parted $DISK --script mklabel gpt
 
@@ -59,10 +76,6 @@ parted $DISK --script set 1 esp on
 
 parted $DISK --script mkpart swap linux-swap 1025MiB $((1025 + 4096))MiB
 parted $DISK --script mkpart root ext4 $((1025 + 4096))MiB 100%
-
-EFI_PART="${DISK}p1"
-SWAP_PART="${DISK}p2"
-ROOT_PART="${DISK}p3"
 
 ### ======================
 ### FORMAT
@@ -77,7 +90,7 @@ if [[ "$SWAP" == "On" ]]; then
 fi
 
 ### ======================
-### MOUNT (FIXED)
+### MOUNT
 ### ======================
 
 mount $ROOT_PART /mnt/gentoo
@@ -88,7 +101,7 @@ mount $EFI_PART /mnt/gentoo/efi
 mkdir -p /mnt/gentoo/{proc,sys,dev,boot,etc,home,var,tmp}
 
 ### ======================
-### STAGE3 DOWNLOAD
+### STAGE3
 ### ======================
 
 cd /mnt/gentoo
@@ -124,37 +137,27 @@ chroot /mnt/gentoo /bin/bash <<EOF
 
 source /etc/profile
 
-### timezone
 echo "$TIMEZONE" > /etc/timezone
 emerge --config sys-libs/timezone-data
 
-### locale
 echo "$LOCALE" > /etc/locale.gen
 locale-gen
 eselect locale set 1
 
-### hostname
 echo "$HOSTNAME" > /etc/hostname
 
-### profile
 eselect profile set "$PROFILE"
 
-### kernel
 emerge sys-kernel/gentoo-kernel-bin linux-firmware
 
-### users
 echo "root:$ROOT_PASSWORD" | chpasswd
 useradd -m -G wheel,video,audio -s /bin/bash $USERNAME
 echo "$USERNAME:$USER_PASSWORD" | chpasswd
 
-### sudo tools
-emerge sudo
+emerge sudo dhcpcd
 
-### network + system tools
-emerge dhcpcd
 rc-update add dhcpcd default
 
-### bootloader
 emerge sys-boot/grub
 grub-install --target=$TARGET --efi-directory=/efi
 grub-mkconfig -o /boot/grub/grub.cfg
