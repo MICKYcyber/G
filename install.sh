@@ -1,110 +1,158 @@
 #!/bin/bash
+set -e
 
-CONF_DIR="/mnt/gentoo/etc/portage/make.conf"
+### ======================
+### CONFIG (FIXED)
+### ======================
 
-# Include gentoo_config.cfg file
-source gentoo_config.cfg
+GENTOO_BASE="https://distfiles.gentoo.org/releases/amd64/autobuilds/current-stage3-amd64-openrc/latest-stage3-amd64-openrc.tar.xz"
 
-echo "Starting Gentoo automated installation..."
+FS_TYPE="ext4"
+SWAP="On"
+SWAP_SIZE="4G"
+EFI_SIZE="1G"
 
-# Disk
-# Configure swap
-if [ "${SWAP}" = "On" ]; then
-  echo -e "n\n1\n\n+${EFI_SIZE}\nt\n1\nn\n2\n\n+${SWAP_SIZE}\nn\n3\n\n\nw" | fdisk /dev/${DISK_NAME}
-  mkfs.${FLT} /dev/${DISK_NAME}p3
-  mkswap /dev/${DISK_NAME}p2
-  swapon /dev/${DISK_NAME}p2
-  mkfs.fat /dev/${DISK_NAME}p1
-  mount /dev/${DISK_NAME}p3 /mnt/gentoo
-  cd /mnt/gentoo
-  chronyd -q
-  wget ${GENTOO_BASE} -O /mnt/gentoo/stage3.tar.xz
-  tar xpvf /mnt/gentoo/stage3.tar.xz --xattrs-include='*.*' --numeric-owner -C /mnt/gentoo/
-  rm /mnt/gentoo/stage3.tar.xz
-  sed -i 's/^COMMON_FLAGS="\(.*\)"/COMMON_FLAGS="\1 -march=native"/' >> ${CONF_DIR}
-  echo 'INPUT_DEVICES="libinput"' >> ${CONF_DIR}
-  echo 'MAKEOPTS="${MAKE_OPTS}"' >> ${CONF_DIR}
-  echo 'USE=${USE}' >> ${CONF_DIR}
-  echo 'ACCEPT_LICENSE="${ACCEPT_LICENSE}"' >> ${CONF_DIR}
-  echo 'ACCEPT_KEYWORDS="${ACCEPT_KEYWORDS}"' >> ${CONF_DIR}
-  echo 'LC_MESSAGES=C.utf8' >> ${CONF_DIR}
-  echo 'GRUB_PLATFORMS="${GRUB_PLATFORMS}"' >> ${CONF_DIR}
-  ${CONF}
-  mkdir /efi
-  mount /dev/${DISK_NAME}p1 /efi
-  emerge-webrsync
-  emerge --sync
-  eselect profile set ${PROFILE}
-  emerge --verbose --update --deep --newuse @world
-  echo "${TIMEZONE}" > /etc/timezone
-  emerge --config sys-libs/timezone-data
-  echo "${LOCALE}" > /etc/locale.gen
-  locale-gen
-  eselect locale set ${LOCALE% *}
-  env-update && source /etc/profile
-  ${KERINST}
-  echo '/dev/nvme0n1p1        /efi    vfat    defaults    0 2' | tee -a /etc/fstab
-  echo '/dev/nvme0n1p3        /    ${FLT}    noatime,discard        0 1' | tee -a /etc/fstab
-  echo '/dev/nvme0n1p2        none    swap    sw        0 0' | tee -a /etc/fstab
-  echo "${HOSTNAME}" > /etc/conf.d/hostname
-  echo "127.0.0.1    ${HOSTNAME} localhost" >> /etc/hosts
-  echo "root:${ROOT_PASSWORD}" | chpasswd
-  sed -i '/^keymap=/s/US/${KEYMAP}/' /etc/conf.d/keymaps
-  ${BOOTLOADER}
-  useradd -m -G users,wheel,audio -s /bin/bash ${USERNAME}
-  echo "${USERNAME}:${USER_PASSWORD}" | chpasswd
-  ${OPT_PACKS}
-  emerge sudo
-  echo "%wheel ALL=(ALL:ALL) ALL" >> /etc/sudoers
-  ${REBOOT}
+TIMEZONE="Europe/Berlin"
 
+ROOT_PASSWORD="2024"
+USERNAME="David"
+USER_PASSWORD="2024"
 
-else
-  echo -e "n\n1\n\n+${EFI_SIZE}\nt\n1\nn\n2\n\n\nw" | fdisk /dev/${DISK_NAME}
-  mkfs.${FLT} /dev/${DISK_NAME}p2
-  mkfs.fat /dev/${DISK_NAME}p1
-  mount /dev/${DISK_NAME}p2 /mnt/gentoo
-  cd /mnt/gentoo
-  chronyd -q
-  wget ${GENTOO_BASE} -O /mnt/gentoo/stage3.tar.xz
-  tar xpvf /mnt/gentoo/stage3.tar.xz --xattrs-include='*.*' --numeric-owner -C /mnt/gentoo/
-  rm /mnt/gentoo/stage3.tar.xz
-  sed -i 's/^COMMON_FLAGS="\(.*\)"/COMMON_FLAGS="\1 -march=native"/' >> ${CONF_DIR}
-  echo 'INPUT_DEVICES="libinput"' >> ${CONF_DIR}
-  echo 'MAKEOPTS="${MAKE_OPTS}"' >> ${CONF_DIR}
-  echo 'USE=${USE}' >> ${CONF_DIR}
-  echo 'ACCEPT_LICENSE="${ACCEPT_LICENSE}"' >> ${CONF_DIR}
-  echo 'ACCEPT_KEYWORDS="${ACCEPT_KEYWORDS}"' >> ${CONF_DIR}
-  echo 'LC_MESSAGES=C.utf8' >> ${CONF_DIR}
-  echo 'GRUB_PLATFORMS="${GRUB_PLATFORMS}"' >> ${CONF_DIR}
-  ${CONF}
-  mkdir /efi
-  mount /dev/${DISK_NAME}p1 /efi
-  emerge-webrsync
-  emerge --sync
-  eselect profile set ${PROFILE}
-  emerge --verbose --update --deep --newuse @world
-  echo "${TIMEZONE}" > /etc/timezone
-  emerge --config sys-libs/timezone-data
-  echo "${LOCALE}" > /etc/locale.gen
-  locale-gen
-  eselect locale set ${LOCALE% *}
-  env-update && source /etc/profile
-  ${KERINST}
-  echo '/dev/nvme0n1p1        /efi    vfat    defaults    0 2' | tee -a /etc/fstab
-  echo '/dev/nvme0n1p2        /    ${FLT}    noatime,discard        0 1' | tee -a /etc/fstab
-  echo "${HOSTNAME}" > /etc/conf.d/hostname
-  echo "127.0.0.1    ${HOSTNAME} localhost" >> /etc/hosts
-  echo "root:${ROOT_PASSWORD}" | chpasswd
-  sed -i '/^keymap=/s/US/${KEYMAP}/' /etc/conf.d/keymaps
-  ${BOOTLOADER}
-  useradd -m -G users,wheel,audio -s /bin/bash ${USERNAME}
-  echo "${USERNAME}:${USER_PASSWORD}" | chpasswd
-  ${OPT_PACKS}
-  emerge sudo
-  echo "%wheel ALL=(ALL:ALL) ALL" >> /etc/sudoers
-  ${REBOOT}
+MAKE_OPTS="-j$(nproc)"
+GRAP_DRIVERS="nouveau"
 
+USE_FLAGS="X -systemd pulseaudio pipewire alsa readline sound-server ssl v4l pam vulkan opengl dbus gtk screencast vdpau ${GRAP_DRIVERS}"
 
+ACCEPT_LICENSE="*"
+ACCEPT_KEYWORDS="~amd64"
+
+DISK="/dev/nvme0n1"
+
+PROFILE="default/linux/amd64/23.0"
+
+HOSTNAME="gentoo"
+LOCALE="en_US.UTF-8 UTF-8"
+KEYMAP="us"
+
+TARGET="x86_64-efi"
+
+### ======================
+### PARTITIONING
+### ======================
+
+echo "[*] Partitioning disk: $DISK"
+
+parted $DISK --script mklabel gpt
+
+parted $DISK --script mkpart ESP fat32 1MiB 1025MiB
+parted $DISK --script set 1 esp on
+
+parted $DISK --script mkpart swap linux-swap 1025MiB $((1025 + 4096))MiB
+parted $DISK --script mkpart root ext4 $((1025 + 4096))MiB 100%
+
+EFI_PART="${DISK}p1"
+SWAP_PART="${DISK}p2"
+ROOT_PART="${DISK}p3"
+
+### ======================
+### FORMAT
+### ======================
+
+mkfs.vfat -F32 $EFI_PART
+mkfs.ext4 $ROOT_PART
+
+if [[ "$SWAP" == "On" ]]; then
+    mkswap $SWAP_PART
+    swapon $SWAP_PART
 fi
 
+### ======================
+### MOUNT
+### ======================
+
+mount $ROOT_PART /mnt/gentoo
+mkdir -p /mnt/gentoo/efi
+mount $EFI_PART /mnt/gentoo/efi
+
+### ======================
+### STAGE3 DOWNLOAD
+### ======================
+
+cd /mnt/gentoo
+wget $GENTOO_BASE -O stage3.tar.xz
+
+tar xpvf stage3.tar.xz --xattrs-include='*.*' --numeric-owner
+
+### ======================
+### MAKE.CONF
+### ======================
+
+cat > /mnt/gentoo/etc/portage/make.conf <<EOF
+MAKEOPTS="$MAKE_OPTS"
+USE="$USE_FLAGS"
+ACCEPT_LICENSE="$ACCEPT_LICENSE"
+ACCEPT_KEYWORDS="$ACCEPT_KEYWORDS"
+GRUB_PLATFORMS="efi-64"
+EOF
+
+### ======================
+### CHROOT SETUP
+### ======================
+
+mount --types proc /proc /mnt/gentoo/proc
+mount --rbind /sys /mnt/gentoo/sys
+mount --make-rslave /mnt/gentoo/sys
+mount --rbind /dev /mnt/gentoo/dev
+mount --make-rslave /mnt/gentoo/dev
+
+cp --dereference /etc/resolv.conf /mnt/gentoo/etc/
+
+chroot /mnt/gentoo /bin/bash <<EOF
+
+source /etc/profile
+
+### timezone
+echo "$TIMEZONE" > /etc/timezone
+emerge --config sys-libs/timezone-data
+
+### locale
+echo "$LOCALE" > /etc/locale.gen
+locale-gen
+eselect locale set 1
+
+### hostname
+echo "$HOSTNAME" > /etc/hostname
+
+### profile
+eselect profile set "$PROFILE"
+
+### kernel
+emerge sys-kernel/gentoo-kernel-bin linux-firmware
+
+### users
+echo "root:$ROOT_PASSWORD" | chpasswd
+useradd -m -G wheel,video,audio -s /bin/bash $USERNAME
+echo "$USERNAME:$USER_PASSWORD" | chpasswd
+
+### sudo tools
+emerge sudo
+
+### network + system tools
+emerge dhcpcd
+rc-update add dhcpcd default
+
+### bootloader
+emerge sys-boot/grub
+grub-install --target=$TARGET --efi-directory=/efi
+grub-mkconfig -o /boot/grub/grub.cfg
+
+EOF
+
+### ======================
+### CLEANUP
+### ======================
+
+umount -R /mnt/gentoo
+swapoff -a
+
+echo "[✔] Install complete. Reboot now."
